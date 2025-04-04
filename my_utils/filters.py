@@ -88,7 +88,7 @@ class MyFilter:
 
         X_filtered = X_data.copy()
         y_filtered = y_data.copy() if y_data is not None else None
-
+        
         # Marca todos los datos como válidos
         outliers_mask = pd.Series([True] * len(X_filtered)) 
 

@@ -173,7 +173,7 @@ class MyTransformation:
         self.imputer = SimpleImputer(strategy="mean")  # Rellena valores faltantes con la media
         self.scaler_y = StandardScaler()
         self.categorical_columns = []
-    
+        
     def fit(self, X, y):
         X_data = X.copy()
         y_data = y.copy()
