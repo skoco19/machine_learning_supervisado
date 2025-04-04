@@ -15,6 +15,7 @@ from sklearn.preprocessing import PolynomialFeatures
 from sklearn.impute import KNNImputer
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.cluster import KMeans
+from sklearn.preprocessing import RobustScaler, PolynomialFeatures, TargetEncoder
 
 
 
@@ -159,48 +160,60 @@ class SimpleTransformation:
         X_final = pd.concat([X.drop(columns=["city"]), X_cat], axis=1)
         return X_final, y
 
+
+
+# Convierte variables categóricas en números usando LabelEncoder, 
+# rellena los valores faltantes en las columnas numéricas con la media 
+# y escala la variable objetivo utilizando StandardScaler
+
 class MyTransformation:
     
+    def __init__(self):
+        self.label_encoders = {}
+        self.imputer = SimpleImputer(strategy="mean")  # Rellena valores faltantes con la media
+        self.scaler_y = StandardScaler()
+        self.categorical_columns = []
+    
     def fit(self, X, y):
-        # Crea copias de los datos de entrada 
-        # para evitar modificar los datos originales
         X_data = X.copy()
         y_data = y.copy()
         
-        # Identifica columnas categóricas y aplicar Label Encoding
-        self.categorical_columns = X_data.select_dtypes(include=['object']).columns
+        # Identificar columnas categóricas y aplicar Label Encoding
+        self.categorical_columns = X_data.select_dtypes(include=['object']).columns.tolist()
         for col in self.categorical_columns:
             le = LabelEncoder()
             X_data[col] = le.fit_transform(X_data[col].astype(str))
             self.label_encoders[col] = le
         
-        # Agrupa las filas de datos basadose en sus valores numericos 
-        self.kmeans.fit(X_data.select_dtypes(include=[np.number]))
+        # Ajustar el imputador con los datos numéricos
+        self.imputer.fit(X_data.select_dtypes(include=[np.number]))
         
-        # Entrena el imputador KNN con los datos de entrada
-        # Aprende como imputar los valores faltantes basandose en los vecinos mas cercanos
-        self.knn_imputer.fit(X_data)
-        
-        # Ajusta a la variable objetivo
-        self.scaler_y.fit(y_data)
+        # Ajustar el escalador para y
+        self.scaler_y.fit(y_data.values.reshape(-1, 1))
     
-    def transform(self, X, y):
+    def transform(self, X, y=None):
+
+        # Copia de los datos originales
         X_data = X.copy()
-        y_data = y.copy()
+        y_data = y.copy() if y is not None else None
         
-        # Aplica label encoding a las variables categoricas
+        # Aplicar Label Encoding a las variables categóricas
         for col in self.categorical_columns:
             if col in X_data.columns:
-                # Aplica la transformación de Label Encoding a la columna categorica
-                X_data[col] = self.label_encoders[col].transform(X_data[col].astype(str))
+                # Transforma la columna categórica en números
+                X_data[col] = X_data[col].map(lambda x: self.label_encoders[col].transform([x])[0] if x in self.label_encoders[col].classes_ else -1)
         
-        # Aplica KNN a los datos numericos y rellena los faltantes
-        X_data = pd.DataFrame(self.knn_imputer.transform(X_data), columns=X.columns, index=X.index)
+        # Rellena los valores faltantes en las columnas numéricas con la media
+        X_data[X_data.select_dtypes(include=[np.number]).columns] = self.imputer.transform(X_data.select_dtypes(include=[np.number]))
         
-        # Utiliza el modelo de KMeans para predecir a que cluster pertenece cada fila
-        X_data['Cluster'] = self.kmeans.predict(X_data.select_dtypes(include=[np.number]))
-        
-        # Escala la variable objetivo antes de devolverla
-        y_scaled = self.scaler_y.transform(y_data)
-        
-        return X_data, y_scaled
+        # Escala la variable objetivo (media 0 y desviación estándar 1)
+        if y_data is not None:
+            y_scaled = self.scaler_y.transform(y_data.values.reshape(-1, 1))
+            return X_data, y_scaled
+        else:
+            return X_data
+
+    def inverse_transform(self, y_scaled):
+        # Reinvierte la transformación de la variable objetivo escalada
+        return self.scaler_y.inverse_transform(y_scaled)
+    

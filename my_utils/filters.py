@@ -68,25 +68,45 @@ class MyFilter:
 
     def fit(self, X_data, y_data=None):
         for column in X_data.columns:
+
+            # Calcular el primer cuartil (Q1) y el tercer cuartil (Q3) de la columna
             Q1 = X_data[column].quantile(0.25)
             Q3 = X_data[column].quantile(0.75)
+
+            # Calcular el rango intercuartílico (IQR)
             IQR = Q3 - Q1
+
+            # Calcular los límites inferior y superior utilizando el multiplicador IQR
             limite_inf = Q1 - self.iqr_multiplier * IQR
             limite_sup= Q3 + self.iqr_multiplier * IQR
+
+            # Almacenar los límites en un diccionario
             self.iqr_limites[column] = (limite_inf, limite_sup)
         return self
 
     def transform(self, X_data, y_data=None):
+
         X_filtered = X_data.copy()
         y_filtered = y_data.copy() if y_data is not None else None
 
-        outliers_mask = pd.Series([True] * len(X_filtered))  # Inicializar con True
-        for column in X_filtered.columns:
-            limite_inf, limite_sup = self.iqr_limites[column]
-            column_outliers_mask = (X_filtered[column] < limite_inf) | (X_filtered[column] > limite_sup)
-            outliers_mask = outliers_mask & ~column_outliers_mask  # Combinar máscaras con AND NOT
+        # Marca todos los datos como válidos
+        outliers_mask = pd.Series([True] * len(X_filtered)) 
 
+
+        for column in X_filtered.columns:
+            # Obtener los límites inferior y superior para cada columna
+            limite_inf, limite_sup = self.iqr_limites[column]
+
+            # Identifica los valores atipicos
+            column_outliers_mask = (X_filtered[column] < limite_inf) | (X_filtered[column] > limite_sup)
+            
+            # Actualiza y elimina los atipicos
+            outliers_mask = outliers_mask & ~column_outliers_mask  
+
+        # Filtra los datos sin atipicos
         X_filtered = X_filtered[outliers_mask]
+
+        # Filtra la variable objetivo si está presente
         if y_filtered is not None:
             y_filtered = y_filtered[outliers_mask]
 
